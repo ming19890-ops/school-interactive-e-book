@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#172554">
+<title>SCHOOL INTERACTIVE E-BOOK</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172554}
+header{background:#172554;color:white;padding:22px 18px}
+header h1{font-size:21px;margin:0 0 7px}
+header p{margin:0;color:#cbd5e1;font-size:13px}
+main{max-width:850px;margin:22px auto;padding:0 15px}
+.card{background:white;padding:20px;border-radius:14px;margin-bottom:16px;box-shadow:0 2px 9px #0000000d}
+h2{font-size:19px;margin-top:0}
+button{border:0;border-radius:9px;padding:12px 17px;background:#2563eb;color:white;font-size:15px;cursor:pointer}
+button:disabled{opacity:.5}
+.secondary{background:#475569}
+input,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;margin:7px 0 13px;font-size:15px}
+.book{border:1px solid #e2e8f0;padding:14px;border-radius:10px;margin:10px 0}
+.book h3{margin:0 0 7px}
+.muted{color:#64748b;font-size:13px}
+.hidden{display:none}
+#message{padding:12px;border-radius:8px;background:#e0f2fe;margin-bottom:15px}
+footer{text-align:center;padding:25px;color:#64748b;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>📚 SCHOOL INTERACTIVE E-BOOK</h1>
+<p>School Digital Learning Platform</p>
+</header>
+
+<main>
+<div id="message">正在连接 Firebase...</div>
+
+<section class="card" id="loginCard">
+<h2>欢迎使用电子书平台</h2>
+<p>请使用已授权的 Google Gmail 登录。</p>
+<button id="loginBtn">使用 Google 登录</button>
+</section>
+
+<section class="card hidden" id="userCard">
+<h2>个人账户</h2>
+<p id="userInfo"></p>
+<p class="muted" id="userRole"></p>
+<button class="secondary" id="logoutBtn">登出</button>
+</section>
+
+<section class="card hidden" id="bookCard">
+<h2>📖 电子书馆</h2>
+<p class="muted">学校已发布的电子书将显示在这里。</p>
+<div id="bookList">正在读取电子书...</div>
+</section>
+
+<section class="card hidden" id="applicationCard">
+<h2>👨‍👩‍👧 家长账号申请</h2>
+<label>家长姓名</label>
+<input id="parentName" placeholder="请输入家长姓名">
+<label>学生姓名</label>
+<input id="studentName" placeholder="请输入学生姓名">
+<label>班级</label>
+<input id="className" placeholder="例如：6A">
+<button id="applyBtn">提交申请</button>
+</section>
+
+<section class="card hidden" id="adminCard">
+<h2>🛡️ 管理员控制台</h2>
+<p>管理员身份已验证。</p>
+<p class="muted">待审核家长申请</p>
+<div id="applicationList">正在读取申请...</div>
+</section>
+</main>
+
+<footer>
+SCHOOL INTERACTIVE E-BOOK © 2026
+</footer>
+
+<script type="module">
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+
+import {
+ getAuth, GoogleAuthProvider,
+ signInWithRedirect, getRedirectResult,
+ onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+
+import {
+ getFirestore, collection, doc, getDoc, getDocs,
+ addDoc, query, where, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
+
+const firebaseConfig = {
+ apiKey: "AIzaSyD3GytBA5_zTJXOLTovcQ76tlU79MNv4mM",
+ authDomain: "school-interactive-e-book.firebaseapp.com",
+ projectId: "school-interactive-e-book",
+ storageBucket: "school-interactive-e-book.firebasestorage.app",
+ messagingSenderId: "521338694555",
+ appId: "1:521338694555:web:8b6122fc51d61256650f3e",
+ measurementId: "G-NCXPGK546B"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
+
+const $ = id => document.getElementById(id);
+
+function message(text){
+ $("message").textContent = text;
+}
+
+$("loginBtn").onclick = async () => {
+ try {
+  await signInWithRedirect(auth, provider);
+ } catch(e) {
+  message("登录失败：" + e.message);
+ }
+};
+
+$("logoutBtn").onclick = () => signOut(auth);
+
+try {
+ await getRedirectResult(auth);
+} catch(e) {
+ message("Google 登录失败：" + e.message);
+}
+
+async function loadBooks(){
+ const list = $("bookList");
+ list.textContent = "正在读取电子书...";
+ try {
+  const q = query(
+   collection(db,"booklets"),
+   where("status","==","published")
+  );
+  const result = await getDocs(q);
+  list.innerHTML = "";
+
+  if(result.empty){
+   list.textContent = "目前还没有已发布的电子书。";
+   return;
+  }
+
+  result.forEach(item => {
+   const b = item.data();
+   const div = document.createElement("div");
+   div.className = "book";
+
+   const title = document.createElement("h3");
+   title.textContent = b.title || "未命名电子书";
+
+   const desc = document.createElement("p");
+   desc.textContent = b.description || "";
+
+   const pages = document.createElement("p");
+   pages.className = "muted";
+   pages.textContent = "页数：" + (b.totalPages ?? "-");
+
+   div.append(title,desc,pages);
+   list.appendChild(div);
+  });
+ } catch(e) {
+  list.textContent = "读取失败，请检查 Firestore Rules。";
+  console.error(e);
+ }
+}
+
+async function checkRole(user){
+ let role = "user";
+
+ try {
+  const userDoc = await getDoc(doc(db,"users",user.uid));
+
+  if(userDoc.exists()){
+   role = userDoc.data().role || "user";
+  } else {
+   // 检查现有 super_admin 管理员记录
+   const adminDoc = await getDoc(doc(db,"users","super_admin"));
+   if(adminDoc.exists() &&
+      adminDoc.data().email?.toLowerCase() === user.email?.toLowerCase()){
+    role = "super_admin";
+   }
+  }
+ } catch(e) {
+  console.error("权限读取失败",e);
+ }
+
+ return role;
+}
+
+async function loadApplications(){
+ const list = $("applicationList");
+ list.textContent = "正在读取...";
+ try {
+  const q = query(
+   collection(db,"parentApplications"),
+   where("status","==","pending")
+  );
+  const result = await getDocs(q);
+  list.innerHTML = "";
+
+  if(result.empty){
+   list.textContent = "目前没有待审核申请。";
+   return;
+  }
+
+  result.forEach(item => {
+   const a = item.data();
+   const div = document.createElement("div");
+   div.className = "book";
+   const info = document.createElement("p");
+   info.textContent =
+    "家长：" + (a.parentName || "") +
+    "｜学生：" + (a.studentName || "") +
+    "｜班级：" + (a.className || "");
+   div.appendChild(info);
+   list.appendChild(div);
+  });
+ } catch(e) {
+  list.textContent = "读取申请失败，请检查数据库权限。";
+  console.error(e);
+ }
+}
+
+$("applyBtn").onclick = async () => {
+ const user = auth.currentUser;
+ const parentName = $("parentName").value.trim();
+ const studentName = $("studentName").value.trim();
+ const className = $("className").value.trim();
+
+ if(!user) return message("请先登录。");
+ if(!parentName || !studentName || !className){
+  return message("请填写所有申请资料。");
+ }
+
+ $("applyBtn").disabled = true;
+
+ try {
+  await addDoc(collection(db,"parentApplications"),{
+   parentName,
+   studentName,
+   className,
+   email:user.email,
+   userId:user.uid,
+   status:"pending",
+   createdAt:serverTimestamp()
+  });
+
+  message("申请已提交，请等待管理员审核。");
+  $("parentName").value="";
+  $("studentName").value="";
+  $("className").value="";
+ } catch(e) {
+  message("提交失败，请检查 Firestore Rules。");
+  console.error(e);
+ } finally {
+  $("applyBtn").disabled = false;
+ }
+};
+
+onAuthStateChanged(auth,async user => {
+ if(!user){
+  $("loginCard").classList.remove("hidden");
+  $("userCard").classList.add("hidden");
+  $("bookCard").classList.add("hidden");
+  $("applicationCard").classList.add("hidden");
+  $("adminCard").classList.add("hidden");
+  message("请使用 Google Gmail 登录。");
+  return;
+ }
+
+ $("loginCard").classList.add("hidden");
+ $("userCard").classList.remove("hidden");
+ $("bookCard").classList.remove("hidden");
+ $("applicationCard").classList.remove("hidden");
+
+ $("userInfo").textContent =
+  "登录账号：" + (user.email || "");
+
+ message("Google 登录成功，正在载入平台。");
+
+ const role = await checkRole(user);
+ $("userRole").textContent = "账户角色：" + role;
+
+ if(role === "super_admin" || role === "admin"){
+  $("adminCard").classList.remove("hidden");
+  await loadApplications();
+ } else {
+  $("adminCard").classList.add("hidden");
+ }
+
+ await loadBooks();
+});
+</script>
+</body>
+</html>
